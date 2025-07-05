@@ -28,6 +28,10 @@ const generateGameId = () => {
   return result;
 };
 
+const formatAmount = (amount) => {
+  return amount.toLocaleString("cs-CZ").replace(/\u00a0/g, " ");
+};
+
 export default function App() {
   const [userId, setUserId] = useState(null);
   const [players, setPlayers] = useState([]);
@@ -196,7 +200,7 @@ export default function App() {
       type: "admin-add"
     });
 
-    alert(`Přidáno $${amount} hráči ${data.name}`);
+    alert(`Přidáno $${formatAmount(amount)} hráči ${data.name}`);
   };
 
   if (loading) return <div className="p-4 text-center">Načítání...</div>;
@@ -242,7 +246,7 @@ export default function App() {
       <ul className="mb-4 space-y-1">
         {players.map((p) => (
           <li key={p.id}>
-            {p.name}: ${p.balance}
+            {p.name}: ${formatAmount(p.balance)}
           </li>
         ))}
       </ul>
@@ -299,13 +303,11 @@ export default function App() {
               className="border p-2 w-full"
             >
               <option value="">-- Vyber hráče --</option>
-              {players
-                .filter((p) => p.id !== userId)
-                .map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
+              {players.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
             </select>
             <input
               type="number"
@@ -332,7 +334,7 @@ export default function App() {
             const toName = t.to ? players.find((p) => p.id === t.to)?.name || "?" : "BANKA";
             return (
               <li key={t.id}>
-                <span className="font-semibold">{fromName}</span> → <span className="font-semibold">{toName}</span>: ${t.amount}
+                <span className="font-semibold">{fromName}</span> → <span className="font-semibold">{toName}</span>: ${formatAmount(t.amount)}
                 <span className="text-xs text-gray-500 ml-2">
                   ({new Date(t.timestamp).toLocaleTimeString()})
                 </span>
