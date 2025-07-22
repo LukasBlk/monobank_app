@@ -298,11 +298,11 @@ export default function App() {
   if (!joining) {
     return (
       <div className="p-4 space-y-4 max-w-md mx-auto text-center">
-        <h1 className="text-3xl font-monopoly text-red-500">Vítej v Monobank</h1>
-        <button className="bg-blue-500 text-white px-4 py-2 rounded w-full" onClick={() => setJoining("join")}>
+        <h1>Vítej v Monobank</h1>
+        <button className="primary" onClick={() => setJoining("join")}>
           Připojit se do existující hry
         </button>
-        <button className="bg-green-500 text-white px-4 py-2 rounded w-full" onClick={() => setJoining("create")}>
+        <button className="secondary" onClick={() => setJoining("create")}>
           Založit novou hru
         </button>
       </div>
