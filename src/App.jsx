@@ -45,6 +45,9 @@ export default function App() {
   const [gameControl, setGameControl] = useState(null);
   const [joining, setJoining] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [startBalance, setStartBalance] = useState(""); // 🔸 Nový stav
+  const [startBonus, setStartBonus] = useState("");      // 🔸 Nový stav
 
   useEffect(() => {
     signInAnonymously(auth).then((res) => {
@@ -52,30 +55,91 @@ export default function App() {
     });
   }, []);
 
+
+  useEffect(() => {
+    signInAnonymously(auth).then(res => setUserId(res.user.uid));
+  }, []);
+
   useEffect(() => {
     if (!userId || !gameId) return;
 
     const playersRef = collection(db, "games", gameId, "players");
-    const unsubscribePlayers = onSnapshot(playersRef, (snapshot) => {
-      const playerList = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-      setPlayers(playerList);
-
-      const me = playerList.find((p) => p.id === userId);
+    const unsubP = onSnapshot(playersRef, snapshot => {
+      const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      setPlayers(list);
+      const me = list.find(p => p.id === userId);
       setIsAdmin(me?.isAdmin === true);
     });
 
     const q = query(collection(db, "games", gameId, "transactions"), orderBy("timestamp", "desc"));
-    const unsubscribeTransactions = onSnapshot(q, (snapshot) => {
-      const all = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-      const filtered = all.filter((t) => isAdmin || t.from === userId || t.to === userId);
+    const unsubT = onSnapshot(q, snapshot => {
+      const all = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      const filtered = all.filter(t => isAdmin || t.from === userId || t.to === userId);
       setTransactions(filtered);
     });
 
     return () => {
-      unsubscribePlayers();
-      unsubscribeTransactions();
+      unsubP();
+      unsubT();
     };
-  }, [userId, gameId, isAdmin]);
+  }, [userId, gameId, isAdmin, refreshKey]);
+
+  const manualRefresh = () => setRefreshKey(prev => prev + 1);
+
+  const grantStartBonus = async (playerId) => {
+    const controlRef = doc(db, "games", gameId, "control", "control");
+    const controlSnap = await getDoc(controlRef);
+    const bonus = controlSnap.exists() ? controlSnap.data().startBonus ?? 200 : 200;
+
+    const ref = doc(db, "games", gameId, "players", playerId);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) return;
+
+    const data = snap.data();
+    await updateDoc(ref, { balance: data.balance + bonus });
+
+    await addDoc(collection(db, "games", gameId, "transactions"), {
+      from: null,
+      to: playerId,
+      amount: bonus,
+      timestamp: Date.now(),
+      type: "start-bonus"
+    });
+  };
+
+  const undoTransaction = async (tx) => {
+    const txRef = doc(db, "games", gameId, "transactions", tx.id);
+    await deleteDoc(txRef);
+
+    if (tx.type === "transfer") {
+      const senderRef = doc(db, "games", gameId, "players", tx.from);
+      const recipientRef = doc(db, "games", gameId, "players", tx.to);
+
+      const senderSnap = await getDoc(senderRef);
+      const recipientSnap = await getDoc(recipientRef);
+
+      if (senderSnap.exists() && recipientSnap.exists()) {
+        await updateDoc(senderRef, { balance: senderSnap.data().balance + tx.amount });
+        await updateDoc(recipientRef, { balance: recipientSnap.data().balance - tx.amount });
+      }
+    }
+
+    if (tx.type === "admin-add") {
+      const toRef = doc(db, "games", gameId, "players", tx.to);
+      const toSnap = await getDoc(toRef);
+      if (toSnap.exists()) {
+        await updateDoc(toRef, { balance: toSnap.data().balance - tx.amount });
+      }
+    }
+
+    if (tx.type === "to-bank") {
+      const fromRef = doc(db, "games", gameId, "players", tx.from);
+      const fromSnap = await getDoc(fromRef);
+      if (fromSnap.exists()) {
+        await updateDoc(fromRef, { balance: fromSnap.data().balance + tx.amount });
+      }
+    }
+  };
 
   const createGame = async () => {
     if (!name || !gamePassword) return;
@@ -83,15 +147,28 @@ export default function App() {
 
     const newGameId = generateGameId();
     const controlRef = doc(db, "games", newGameId, "control", "control");
-    await setDoc(controlRef, { adminId: userId, password: gamePassword });
+
+    await setDoc(controlRef, {
+      adminId: userId,
+      password: gamePassword,
+      startBalance,
+      startBonus
+    });
+
     await setDoc(doc(db, "games", newGameId, "players", userId), {
       name,
-      balance: 1500,
+      balance: startBalance,
       isAdmin: true
     });
 
     setGameId(newGameId);
-    setGameControl({ adminId: userId, password: gamePassword });
+    setGameControl({
+      adminId: userId,
+      password: gamePassword,
+      startBalance,
+      startBonus
+    });
+
     setLoading(false);
   };
 
@@ -119,7 +196,11 @@ export default function App() {
     const playerRef = doc(db, "games", gameId, "players", userId);
     const playerSnap = await getDoc(playerRef);
     if (!playerSnap.exists()) {
-      await setDoc(playerRef, { name, balance: 1500, isAdmin: false });
+      await setDoc(playerRef, {
+        name,
+        balance: controlData.startBalance || 1500,
+        isAdmin: false
+      });
     }
 
     setLoading(false);
@@ -133,6 +214,12 @@ export default function App() {
     if (!senderSnap.exists()) return;
     const senderData = senderSnap.data();
 
+    // 🚫 Kontrola zůstatku – hráč nesmí jít do mínusu
+    if (senderData.balance < amount) {
+      alert("Nemáš dostatek peněz na účtu.");
+      return;
+    }
+
     await updateDoc(senderRef, { balance: senderData.balance - amount });
 
     if (recipient === "BANK") {
@@ -143,6 +230,7 @@ export default function App() {
         timestamp: Date.now(),
         type: "to-bank"
       });
+      setAmount(0); // 🧼 Vymaž částku po transakci
       return;
     }
 
@@ -160,6 +248,7 @@ export default function App() {
       timestamp: Date.now(),
       type: "transfer"
     });
+    setAmount(0); // 🧼 Vymaž částku po transakci
   };
 
   const resetGame = async () => {
@@ -201,6 +290,7 @@ export default function App() {
     });
 
     alert(`Přidáno $${formatAmount(amount)} hráči ${data.name}`);
+    setAmount(0); // 🧼 Vymaž částku i po admin přidání
   };
 
   if (loading) return <div className="p-4 text-center">Načítání...</div>;
@@ -208,7 +298,7 @@ export default function App() {
   if (!joining) {
     return (
       <div className="p-4 space-y-4 max-w-md mx-auto text-center">
-        <h1 className="text-xl font-bold">Vítej v Monobank</h1>
+        <h1 className="text-3xl font-monopoly text-red-500">Vítej v Monobank</h1>
         <button className="bg-blue-500 text-white px-4 py-2 rounded w-full" onClick={() => setJoining("join")}>
           Připojit se do existující hry
         </button>
@@ -228,6 +318,30 @@ export default function App() {
           <input className="border p-2 w-full" placeholder="Game ID" value={gameId} onChange={(e) => setGameId(e.target.value.toUpperCase())} />
         )}
         <input className="border p-2 w-full" placeholder="Heslo ke hře" value={gamePassword} onChange={(e) => setGamePassword(e.target.value)} />
+
+        <>
+          <input
+            type="text"
+            className="border p-2 w-full"
+            placeholder="Počáteční zůstatek"
+            value={startBalance === 0 ? "" : formatAmount(startBalance)}
+            onChange={(e) => {
+              const raw = e.target.value.replace(/\s/g, "");
+              setStartBalance(raw === "" ? 0 : parseInt(raw));
+            }}
+          />
+          <input
+            type="text"
+            className="border p-2 w-full"
+            placeholder="Bonus za start"
+            value={startBonus === 0 ? "" : formatAmount(startBonus)}
+            onChange={(e) => {
+              const raw = e.target.value.replace(/\s/g, "");
+              setStartBonus(raw === "" ? 0 : parseInt(raw));
+            }}
+          />
+        </>
+
         <button className="bg-blue-600 text-white px-4 py-2 rounded w-full" onClick={joining === "join" ? joinGame : createGame}>
           {joining === "join" ? "Připojit se" : "Založit hru"}
         </button>
@@ -242,11 +356,28 @@ export default function App() {
     <div className="max-w-md mx-auto p-4 font-sans text-sm">
       <h1 className="text-xl font-bold mb-4 text-center">Monobank</h1>
 
+      <div className="text-right mb-2">
+        <button
+          onClick={manualRefresh}
+          className="text-blue-500 text-xs underline"
+        >
+          Aktualizovat 🔄
+        </button>
+      </div>
+
       <h2 className="font-semibold">Hráči:</h2>
       <ul className="mb-4 space-y-1">
-        {players.map((p) => (
-          <li key={p.id}>
-            {p.name}: ${formatAmount(p.balance)}
+        {players.map(p => (
+          <li key={p.id} className="flex justify-between items-center">
+            <span>{p.name}: ${formatAmount(p.balance)}</span>
+            {isAdmin && (
+              <button
+                onClick={() => grantStartBonus(p.id)}
+                className="ml-2 text-xs bg-yellow-200 px-2 py-1 rounded hover:bg-yellow-300"
+              >
+                🔁
+              </button>
+            )}
           </li>
         ))}
       </ul>
@@ -268,11 +399,18 @@ export default function App() {
         </select>
 
         <input
-          type="number"
+          type="text"
           className="border p-2 w-full"
           placeholder="Částka"
-          value={amount}
-          onChange={(e) => setAmount(Number(e.target.value))}
+          value={amount === 0 ? "" : formatAmount(amount)}
+          onChange={(e) => {
+            const raw = e.target.value.replace(/\s/g, "");
+            if (raw === "") {
+              setAmount(0);
+            } else if (/^\d+$/.test(raw)) {
+              setAmount(parseInt(raw));
+            }
+          }}
         />
 
         <button onClick={transferMoney} className="bg-green-500 text-white px-4 py-2 rounded w-full">
@@ -310,11 +448,18 @@ export default function App() {
               ))}
             </select>
             <input
-              type="number"
+              type="text"
               className="border p-2 w-full"
               placeholder="Částka k přidání"
-              value={amount}
-              onChange={(e) => setAmount(Number(e.target.value))}
+              value={amount === 0 ? "" : formatAmount(amount)}
+              onChange={(e) => {
+                const raw = e.target.value.replace(/\s/g, "");
+                if (raw === "") {
+                  setAmount(0);
+                } else if (/^\d+$/.test(raw)) {
+                  setAmount(parseInt(raw));
+                }
+              }}
             />
             <button
               className="bg-yellow-500 hover:bg-yellow-600 text-black font-semibold px-4 py-2 rounded w-full"
@@ -322,6 +467,9 @@ export default function App() {
             >
               Přidat peníze
             </button>
+
+
+
           </div>
         </div>
       )}
@@ -333,11 +481,16 @@ export default function App() {
             const fromName = t.from ? players.find((p) => p.id === t.from)?.name || "?" : "BANKA";
             const toName = t.to ? players.find((p) => p.id === t.to)?.name || "?" : "BANKA";
             return (
-              <li key={t.id}>
-                <span className="font-semibold">{fromName}</span> → <span className="font-semibold">{toName}</span>: ${formatAmount(t.amount)}
-                <span className="text-xs text-gray-500 ml-2">
-                  ({new Date(t.timestamp).toLocaleTimeString()})
+              <li key={t.id} className="flex justify-between items-center">
+                <span>
+                  <span className="font-semibold">{fromName}</span> → <span className="font-semibold">{toName}</span>: ${formatAmount(t.amount)}
+                  <span className="text-xs text-gray-500 ml-2">
+                    ({new Date(t.timestamp).toLocaleTimeString()})
+                  </span>
                 </span>
+                {isAdmin && (
+                  <button onClick={() => undoTransaction(t)} className="text-red-500 ml-2 text-sm">❌</button>
+                )}
               </li>
             );
           })}
