@@ -469,7 +469,7 @@ export default function App() {
 
 
       <h2 className="font-semibold">Hráči:</h2>
-      <ul className="mb-4 space-y-2 text-2xl font-semibold bg-[#d2e5d2] shadow-xl/20 rounded-b-2xl">
+      <ul className="mb-4 space-y-2 text-xl font-semibold bg-[#d2e5d2] shadow-xl/20 rounded-b-2xl">
         {[...players, { id: "BANK", name: "🏛️ BANKA", balance: 0 }].map(p => (
           <li
             key={p.id}
