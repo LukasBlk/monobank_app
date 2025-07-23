@@ -361,10 +361,10 @@ export default function App() {
           <img src="/monobank_logo.png" alt="Logo" className="w-32 mx-auto mb-4" />
           <h1 className='text-5xl'>Vítej v Monobank</h1>
           <h2 className='font-light text-xs text-right'>Zkušební provoz   v2.0</h2>
-          <button className="text-white bg-[#0270bf] hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium text-sm px-20 py-2.5 text-center me-2 mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800" onClick={() => setJoining("join")}>
+          <button className="text-white bg-[#0270bf] hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium text-sm w-full py-2.5 text-center me-2 mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800" onClick={() => setJoining("join")}>
             Připojit se do existující hry
           </button>
-          <button className="text-white bg-[#1eb35a] hover:bg-green-800 focus:outline-none focus:ring-4 focus:ring-green-300 font-medium text-sm px-27 py-2.5 text-center me-2 mb-2 dark:bg-green-600 dark:hover:bg-green-700 dark:focus:ring-green-800" onClick={() => setJoining("create")}>
+          <button className="text-white bg-[#1eb35a] hover:bg-green-800 focus:outline-none focus:ring-4 focus:ring-green-300 font-medium text-sm w-full py-2.5 text-center me-2 mb-2 dark:bg-green-600 dark:hover:bg-green-700 dark:focus:ring-green-800" onClick={() => setJoining("create")}>
             Založit novou hru
           </button>
 
@@ -426,7 +426,7 @@ export default function App() {
             </>
           )}
 
-          <button className="text-white bg-[#0270bf] hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium text-sm px-36 py-2.5 text-center me-2 mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800" onClick={joining === "join" ? joinGame : createGame}>
+          <button className="text-white bg-[#0270bf] hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium text-sm w-full py-2.5 text-center me-2 mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800" onClick={joining === "join" ? joinGame : createGame}>
             {joining === "join" ? "Připojit se" : "Založit hru"}
           </button>
           {joining === "create" && (
