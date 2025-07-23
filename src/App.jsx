@@ -360,7 +360,7 @@ export default function App() {
         <div className="space-y-4 max-w-md mx-auto text-center font-monopoly">
           <img src="/monobank_logo.png" alt="Logo" className="w-32 mx-auto mb-4" />
           <h1 className='text-5xl'>Vítej v Monobank</h1>
-          <h2 className='font-light text-xs text-right'>Zkušební provoz   v2.0</h2>
+          <h2 className='font-light text-xs text-right'>Zkušební provoz   v2.3</h2>
           <button className="text-white bg-[#0270bf] hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium text-sm w-full py-2.5 text-center me-2 mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800" onClick={() => setJoining("join")}>
             Připojit se do existující hry
           </button>
