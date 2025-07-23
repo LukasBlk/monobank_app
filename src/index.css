@@ -1,34 +1,9 @@
+@import "tailwindcss";
+
 body {
-  margin: 0;
-  font-family: 'Urbanist', sans-serif;
-  background-color: #fff;
-  color: #111;
-  text-align: center;
+  @apply bg-[#cee9ce];   /*d2e5d2*/
 }
 
-h1 {
-  font-size: 2rem;
-  color: black;
-  font-weight: bold;
-  margin-top: 2rem;
+.font-monopoly {
+  font-family: 'Urbanist';
 }
-
-button {
-  padding: 0.5rem 1.5rem;
-  margin: 0.5rem;
-  border-radius: 8px;
-  border: none;
-  font-weight: bold;
-  cursor: pointer;
-}
-
-button.primary {
-  background-color: #3b82f6;
-  color: white;
-}
-
-button.secondary {
-  background-color: #10b981;
-  color: white;
-}
-

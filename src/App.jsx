@@ -1,5 +1,12 @@
-import { useEffect, useState } from "react";
+
+// Import React hooků, CSS soubory a Firebase instance
+import { useState } from 'react'
+import { useEffect } from "react";
+import './App.css'
 import { firebaseApp } from "./firebaseConfig";
+import { motion } from "framer-motion";
+
+// Import potřebných funkcí z Firestore a autentizace - přístup k datům a čtení dat
 import {
   getFirestore,
   doc,
@@ -14,11 +21,20 @@ import {
   query,
   orderBy
 } from "firebase/firestore";
+
 import { getAuth, signInAnonymously } from "firebase/auth";
 
+// Inicializace přístupu ke konkrétní instanci Firebase DB a autentizace
 const db = getFirestore(firebaseApp);
 const auth = getAuth(firebaseApp);
 
+
+
+// *********************************           
+// ***       Utility funkce      ***
+// *********************************
+
+// Generování náhodného GameID - 5 znaků A-Z a 0-9
 const generateGameId = () => {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
   let result = "";
@@ -28,10 +44,12 @@ const generateGameId = () => {
   return result;
 };
 
+// Formátování číselných částek podle české lokalizace
 const formatAmount = (amount) => {
   return amount.toLocaleString("cs-CZ").replace(/\u00a0/g, " ");
 };
 
+// Definování stavových dat potřebných pro hru
 export default function App() {
   const [userId, setUserId] = useState(null);
   const [players, setPlayers] = useState([]);
@@ -46,16 +64,20 @@ export default function App() {
   const [joining, setJoining] = useState(null);
   const [loading, setLoading] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [startBalance, setStartBalance] = useState(""); // 🔸 Nový stav
-  const [startBonus, setStartBonus] = useState("");      // 🔸 Nový stav
+  const [startBalance, setStartBalance] = useState("");
+  const [startBonus, setStartBonus] = useState("");
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [selectedPlayer, setSelectedPlayer] = useState(null);
+  const [transferAmount, setTransferAmount] = useState("");
 
+  // Anonymní přihlášení hráče a uložení jeho ID do DB
   useEffect(() => {
     signInAnonymously(auth).then((res) => {
       setUserId(res.user.uid);
     });
   }, []);
 
-
+  // Jakmile je známé userId a gameId, spustí se poslech změn hráčů a transakcí. Data se synchronizují v reálném čase přes Firestore.
   useEffect(() => {
     signInAnonymously(auth).then(res => setUserId(res.user.uid));
   }, []);
@@ -84,8 +106,10 @@ export default function App() {
     };
   }, [userId, gameId, isAdmin, refreshKey]);
 
+  // Vynucení refreshe dat
   const manualRefresh = () => setRefreshKey(prev => prev + 1);
 
+  // Udělení startovního bonusu hráči
   const grantStartBonus = async (playerId) => {
     const controlRef = doc(db, "games", gameId, "control", "control");
     const controlSnap = await getDoc(controlRef);
@@ -107,6 +131,7 @@ export default function App() {
     });
   };
 
+  // Zrušení transakce
   const undoTransaction = async (tx) => {
     const txRef = doc(db, "games", gameId, "transactions", tx.id);
     await deleteDoc(txRef);
@@ -139,8 +164,17 @@ export default function App() {
         await updateDoc(fromRef, { balance: fromSnap.data().balance + tx.amount });
       }
     }
+
+    if (tx.type === "start-bonus") {
+      const toRef = doc(db, "games", gameId, "players", tx.to);
+      const toSnap = await getDoc(toRef);
+      if (toSnap.exists()) {
+        await updateDoc(toRef, { balance: toSnap.data().balance - tx.amount });
+      }
+    }
   };
 
+  // Vytvoření hry
   const createGame = async () => {
     if (!name || !gamePassword) return;
     setLoading(true);
@@ -172,6 +206,7 @@ export default function App() {
     setLoading(false);
   };
 
+  // Připojení do hry pomocí GameID a hesla
   const joinGame = async () => {
     if (!name || !gameId) return;
     setLoading(true);
@@ -206,6 +241,8 @@ export default function App() {
     setLoading(false);
   };
 
+  // Odesílání částky jinému hráči nebo bance. Obsahuje kontrolu zůstatku, aktualizaci zůstatku a záznam transakce
+  {/*
   const transferMoney = async () => {
     if (!recipient || amount <= 0) return;
 
@@ -231,6 +268,7 @@ export default function App() {
         type: "to-bank"
       });
       setAmount(0); // 🧼 Vymaž částku po transakci
+      setRecipient(""); // 🧼 Resetuj výběr hráče
       return;
     }
 
@@ -249,8 +287,11 @@ export default function App() {
       type: "transfer"
     });
     setAmount(0); // 🧼 Vymaž částku po transakci
+    setRecipient(""); // 🧼 Resetuj výběr hráče
   };
+  */}
 
+  // Reset hry, smaže celou gaming session z DB
   const resetGame = async () => {
     const confirmed = confirm("Opravdu chceš smazat všechny hráče a historii?");
     if (!confirmed) return;
@@ -271,6 +312,9 @@ export default function App() {
     location.reload();
   };
 
+
+
+  // Přidání peněz hráči Adminem (BANKOU)
   const addMoneyToPlayer = async () => {
     if (!recipient || amount <= 0) return;
 
@@ -293,87 +337,161 @@ export default function App() {
     setAmount(0); // 🧼 Vymaž částku i po admin přidání
   };
 
-  if (loading) return <div className="p-4 text-center">Načítání...</div>;
 
+
+
+  // *********************************           
+  // ***       User Interface      ***
+  // *********************************
+
+  // Loading obrazovka
+  if (loading) return <div className="p-4 text-center font-monopoly">Hned to bude ...</div>;
+
+  // Úvodní obrazovka
   if (!joining) {
     return (
-      <div className="p-4 space-y-4 max-w-md mx-auto text-center">
-        <h1>Vítej v Monobank</h1>
-        <button className="primary" onClick={() => setJoining("join")}>
-          Připojit se do existující hry
-        </button>
-        <button className="secondary" onClick={() => setJoining("create")}>
-          Založit novou hru
-        </button>
-      </div>
+      <motion.div
+        initial={{ opacity: 0, x: 50 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: -50 }}
+        transition={{ duration: 0.3 }}
+        className="p-4"
+      >
+        <div className="p-4 space-y-4 max-w-md mx-auto text-center font-monopoly">
+          <img src="/monobank_logo.png" alt="Logo" className="w-32 mx-auto mb-4" />
+          <h1 className='text-5xl'>Vítej v Monobank</h1>
+          <h2 className='font-light text-xs text-right'>Zkušební provoz   v2.0</h2>
+          <button className="text-white bg-[#0270bf] hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium text-sm px-20 py-2.5 text-center me-2 mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800" onClick={() => setJoining("join")}>
+            Připojit se do existující hry
+          </button>
+          <button className="text-white bg-[#1eb35a] hover:bg-green-800 focus:outline-none focus:ring-4 focus:ring-green-300 font-medium text-sm px-27 py-2.5 text-center me-2 mb-2 dark:bg-green-600 dark:hover:bg-green-700 dark:focus:ring-green-800" onClick={() => setJoining("create")}>
+            Založit novou hru
+          </button>
+
+          <p className='p-10 font-light text-xs text-center'>
+            Created by Lukas Bilek in 🇨🇿 Czech Republic, 🌍 Planet Earth <br /> <br /> Project was created and is managed in my free time and is completely FREE TO USE. If you want to support me, you can <a href="https://www.youtube.com/watch?v=dQw4w9WgXcQ&ab_channel=RickAstley" className="text-blue-500 underline hover:text-blue-700" target="_blank" rel="noopener noreferrer">Buy me a coffee</a>, thank you! <br /> <br /> Have any issue? Wanna report a bug? Contact me via info@lukasbilek.com
+
+          </p>
+        </div>
+      </motion.div>
     );
   }
 
+  // Formulář pro připojení / založení hry
   if (!players.find((p) => p.id === userId)) {
     return (
-      <div className="p-4 space-y-4 max-w-md mx-auto">
-        <h2 className="font-bold text-lg">{joining === "join" ? "Připojit se do hry" : "Založit novou hru"}</h2>
-        <input className="border p-2 w-full" placeholder="Zadej své jméno" value={name} onChange={(e) => setName(e.target.value)} />
-        {joining === "join" && (
-          <input className="border p-2 w-full" placeholder="Game ID" value={gameId} onChange={(e) => setGameId(e.target.value.toUpperCase())} />
-        )}
-        <input className="border p-2 w-full" placeholder="Heslo ke hře" value={gamePassword} onChange={(e) => setGamePassword(e.target.value)} />
 
-        <>
-          <input
-            type="text"
-            className="border p-2 w-full"
-            placeholder="Počáteční zůstatek"
-            value={startBalance === 0 ? "" : formatAmount(startBalance)}
-            onChange={(e) => {
-              const raw = e.target.value.replace(/\s/g, "");
-              setStartBalance(raw === "" ? 0 : parseInt(raw));
-            }}
-          />
-          <input
-            type="text"
-            className="border p-2 w-full"
-            placeholder="Bonus za start"
-            value={startBonus === 0 ? "" : formatAmount(startBonus)}
-            onChange={(e) => {
-              const raw = e.target.value.replace(/\s/g, "");
-              setStartBonus(raw === "" ? 0 : parseInt(raw));
-            }}
-          />
-        </>
+      <motion.div
+        initial={{ opacity: 0, x: 50 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: -50 }}
+        transition={{ duration: 0.3 }}
+        className="p-4"
+      >
 
-        <button className="bg-blue-600 text-white px-4 py-2 rounded w-full" onClick={joining === "join" ? joinGame : createGame}>
-          {joining === "join" ? "Připojit se" : "Založit hru"}
-        </button>
-        {joining === "create" && (
-          <p className="text-xs text-gray-500 text-center">Game ID bude automaticky vygenerováno.</p>
-        )}
-      </div>
+        <div className="p-4 space-y-4 max-w-md mx-auto font-monopoly">
+          <div className="flex items-center justify-center mb-6">
+            <img src="/monobank_logo.png" alt="Logo" className="w-20 h-20 mr-3" />
+            <h2 className="font-bold text-lg">{joining === "join" ? "Připojit se do hry" : "Založit novou hru"}</h2>
+          </div>
+
+          <input className="border p-2 w-full" placeholder="Zadej své jméno" value={name} onChange={(e) => setName(e.target.value)} />
+          {joining === "join" && (
+            <input className="border p-2 w-full" placeholder="Game ID" value={gameId} onChange={(e) => setGameId(e.target.value.toUpperCase())} />
+          )}
+          <input className="border p-2 w-full" placeholder="Heslo ke hře" value={gamePassword} onChange={(e) => setGamePassword(e.target.value)} />
+
+          {joining === "create" && (
+            <>
+              <input
+                type="text"
+                className="border p-2 w-full"
+                placeholder="Počáteční zůstatek"
+                value={startBalance === 0 ? "" : formatAmount(startBalance)}
+                onChange={(e) => {
+                  const raw = e.target.value.replace(/\s/g, "");
+                  setStartBalance(raw === "" ? 0 : parseInt(raw));
+                }}
+              />
+              <input
+                type="text"
+                className="border p-2 w-full"
+                placeholder="Bonus za start"
+                value={startBonus === 0 ? "" : formatAmount(startBonus)}
+                onChange={(e) => {
+                  const raw = e.target.value.replace(/\s/g, "");
+                  setStartBonus(raw === "" ? 0 : parseInt(raw));
+                }}
+              />
+            </>
+          )}
+
+          <button className="text-white bg-[#0270bf] hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium text-sm px-36 py-2.5 text-center me-2 mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800" onClick={joining === "join" ? joinGame : createGame}>
+            {joining === "join" ? "Připojit se" : "Založit hru"}
+          </button>
+          {joining === "create" && (
+            <p className="text-xs text-gray-500 text-center">Spolu se hrou bude vytvořen i unikátní identifikátor GameID. Sdělte ho svým spoluhráčům spolu s heslem, aby se mohli připojit do hry.</p>
+          )}
+
+          {joining === "join" && (
+            <p className="text-xs text-gray-500 text-center"><b>GameID </b>a <b>Heslo ke hře</b> Vám sdělí Váš bankéř / Game master</p>
+          )}
+        </div>
+
+      </motion.div>
+
     );
+
   }
 
+
+  // *********************************           
+  // ***       Herní rozhraní      ***
+  // *********************************
+
   return (
-    <div className="max-w-md mx-auto p-4 font-sans text-sm">
-      <h1 className="text-xl font-bold mb-4 text-center">Monobank</h1>
+    <div className="max-w-md mx-auto p-4 font-sans text-sm font-monopoly">
+
+      <div className="flex items-center justify-center mb-6">
+            <img src="/monobank_logo.png" alt="Logo" className="w-20 h-20 mr-3" />
+            <h1 className="text-xl font-bold mb-4 text-center font-monopoly">Váš účet Monobank</h1>
+          </div>
+      
 
       <div className="text-right mb-2">
         <button
           onClick={manualRefresh}
-          className="text-blue-500 text-xs underline"
+          className="text-black bg-[#a7dcf2] hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-green-300 font-medium text-xs px-0.5 py-0.5 text-center me-2 mb-2 dark:bg-green-600 dark:hover:bg-green-700 dark:focus:ring-green-800"
         >
           Aktualizovat 🔄
         </button>
       </div>
 
+
       <h2 className="font-semibold">Hráči:</h2>
-      <ul className="mb-4 space-y-1">
-        {players.map(p => (
-          <li key={p.id} className="flex justify-between items-center">
-            <span>{p.name}: ${formatAmount(p.balance)}</span>
-            {isAdmin && (
+      <ul className="mb-4 space-y-2 text-2xl font-semibold bg-[#d2e5d2] shadow-xl/20 rounded-b-2xl">
+        {[...players, { id: "BANK", name: "🏛️ BANKA", balance: 0 }].map(p => (
+          <li
+            key={p.id}
+            className="flex justify-between items-center cursor-pointer hover:bg-gray-100 border p-2 rounded shadow"
+            onClick={() => {
+              if (p.id !== userId) {
+                setSelectedPlayer(p);
+                setTransferAmount("");
+                setShowTransferModal(true);
+              }
+            }}
+          >
+            <span className={p.id === userId ? "text-green-600 font-bold" : ""}>
+              {p.name}{p.id !== "BANK" ? `: $${formatAmount(p.balance)}` : ""}
+            </span>
+            {isAdmin && p.id !== "BANK" && (
               <button
-                onClick={() => grantStartBonus(p.id)}
-                className="ml-2 text-xs bg-yellow-200 px-2 py-1 rounded hover:bg-yellow-300"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  grantStartBonus(p.id);
+                }}
+                className="ml-2 text-xs bg-[#f59520] px-5 py-5 rounded hover:bg-yellow-300"
               >
                 🔁
               </button>
@@ -382,25 +500,106 @@ export default function App() {
         ))}
       </ul>
 
+      {showTransferModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center z-50">
+          <div className="bg-white p-6 rounded shadow max-w-sm w-full">
+            <h2 className="text-lg font-bold mb-4">Poslat peníze hráči {selectedPlayer?.name}</h2>
+            <input
+              type="text"
+              placeholder="Zadej částku"
+              value={transferAmount !== '' ? Number(transferAmount).toLocaleString('cs-CZ') : ''}
+              onChange={(e) => {
+                const raw = e.target.value.replace(/\s/g, '');
+                if (!/^\d*$/.test(raw)) return;
+                setTransferAmount(raw);
+              }}
+              className="w-full px-4 py-2 border rounded mb-4"
+            />
+            <div className="flex justify-between">
+              <button
+                className="bg-gray-300 hover:bg-gray-400 text-black px-4 py-2 rounded"
+                onClick={() => setShowTransferModal(false)}
+              >
+                Zrušit
+              </button>
+
+              <button
+                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded"
+                onClick={async () => {
+                  const amountToSend = parseInt(transferAmount);
+                  if (!amountToSend || amountToSend <= 0) return;
+
+                  const senderRef = doc(db, "games", gameId, "players", userId);
+                  const senderSnap = await getDoc(senderRef);
+                  const senderData = senderSnap.data();
+
+                  if (senderData.balance < amountToSend) {
+                    alert("Nedostatek prostředků.");
+                    return;
+                  }
+
+                  await updateDoc(senderRef, { balance: senderData.balance - amountToSend });
+
+                  if (selectedPlayer.id === "BANK") {
+                    await addDoc(collection(db, "games", gameId, "transactions"), {
+                      from: userId,
+                      to: null,
+                      amount: amountToSend,
+                      timestamp: Date.now(),
+                      type: "to-bank"
+                    });
+                  } else {
+                    const recipientRef = doc(db, "games", gameId, "players", selectedPlayer.id);
+                    const recipientSnap = await getDoc(recipientRef);
+                    const recipientData = recipientSnap.data();
+
+                    await updateDoc(recipientRef, { balance: recipientData.balance + amountToSend });
+
+                    await addDoc(collection(db, "games", gameId, "transactions"), {
+                      from: userId,
+                      to: selectedPlayer.id,
+                      amount: amountToSend,
+                      timestamp: Date.now(),
+                      type: "transfer"
+                    });
+                  }
+
+                  setShowTransferModal(false);
+                  setTransferAmount("");
+                  setSelectedPlayer(null);
+                }}
+              >
+                Odeslat
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/*
       <div className="mt-4 space-y-2">
-        <label className="block">Komu posíláš peníze:</label>
+        <label className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Poslat peníze:</label>
         <select
           value={recipient}
           onChange={(e) => setRecipient(e.target.value)}
-          className="border p-2 w-full"
+          className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
         >
           <option value="">-- Vyber hráče --</option>
           <option value="BANK">BANKA</option>
-          {players.filter((p) => p.id !== userId).map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
+          {["BANK", ...players.filter((p) => p.id !== userId).map((p) => p.id)].map((id) => {
+            if (id === "BANK") {
+              return <option key="BANK" value="BANK">BANKA</option>;
+            }
+
+            const player = players.find((pl) => pl.id === id);
+            if (!player) return null; // bezpečnostní pojistka
+            return <option key={player.id} value={player.id}>{player.name}</option>;
+          })}
         </select>
 
         <input
           type="text"
-          className="border p-2 w-full"
+          className="bg-gray-50 border rounded-lg block p-2 w-full dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400"
           placeholder="Částka"
           value={amount === 0 ? "" : formatAmount(amount)}
           onChange={(e) => {
@@ -413,25 +612,19 @@ export default function App() {
           }}
         />
 
-        <button onClick={transferMoney} className="bg-green-500 text-white px-4 py-2 rounded w-full">
+        <button onClick={transferMoney} className="text-white bg-[#1eb35a] hover:bg-green-800 focus:outline-none focus:ring-4 focus:ring-green-300 font-medium text-sm px-44.5 py-2.5 text-center me-2 mb-2 dark:bg-green-600 dark:hover:bg-green-700 dark:focus:ring-green-800">
           Odeslat
         </button>
       </div>
+      */}
 
       {isAdmin && (
-        <div className="mt-6 border-t pt-4">
+        <div className="mt-6  pt-4 bg-[#ffefbb]">
           <h3 className="font-bold mb-2 text-red-600">Admin panel</h3>
           <p className="text-xs mb-2">
             <strong>Game ID:</strong> {gameId} <br />
             <strong>Heslo:</strong> {gameControl?.password || "žádné"}
           </p>
-
-          <button
-            className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded w-full mb-4"
-            onClick={resetGame}
-          >
-            Resetovat hru
-          </button>
 
           <div className="space-y-2">
             <h4 className="font-semibold">Přidat peníze hráči:</h4>
@@ -462,11 +655,23 @@ export default function App() {
               }}
             />
             <button
-              className="bg-yellow-500 hover:bg-yellow-600 text-black font-semibold px-4 py-2 rounded w-full"
+              className="bg-yellow-500 hover:bg-yellow-600 text-black font-semibold px-10 py-2 rounded w-full"
               onClick={addMoneyToPlayer}
             >
               Přidat peníze
             </button>
+
+            <div className="text-left ">
+
+              <button
+                className="text-white bg-[#e0191c] hover:bg-red-900 focus:outline-none focus:ring-4 focus:ring-green-300 font-medium text-xs px-1 py-0.5 text-center me-2 mb-2 dark:bg-green-600 dark:hover:bg-green-700 dark:focus:ring-green-800"
+                onClick={resetGame}
+              >
+                Resetovat hru
+              </button>
+
+            </div>
+
 
 
 
@@ -474,7 +679,7 @@ export default function App() {
         </div>
       )}
 
-      <div className="mt-8 border-t pt-4">
+      <div className="mt-8  pt-4 bg-[#d2e5d2] shadow-xl/20 rounded-b-2xl">
         <h3 className="font-bold mb-2">Historie transakcí</h3>
         <ul className="space-y-1">
           {transactions.map((t) => {
