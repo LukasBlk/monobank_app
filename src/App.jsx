@@ -6,6 +6,7 @@ import './App.css'
 import { firebaseApp } from "./firebaseConfig";
 import { motion } from "framer-motion";
 import { useRef } from "react";
+import monobank_logo_png from "./assets/monobank_logo.png";
 
 // Import potřebných funkcí z Firestore a autentizace - přístup k datům a čtení dat
 import {
@@ -372,7 +373,7 @@ export default function App() {
         <div className="mx-auto px-4 font-sans text-sm font-monopoly">
           <img src="/monobank_logo.png" alt="Logo" className="w-32 mx-auto mb-4" />
           <h1 className='text-5xl'>Vítej v Monobank</h1>
-          <h2 className='font-light text-xs text-right'>Zkušební provoz   v2.6.2</h2>
+          <h2 className='font-light text-xs text-right'>Zkušební provoz   v2.6.3</h2>
           <button className="text-white bg-[#0270bf] hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium text-sm w-full py-2.5 text-center me-2 mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800" onClick={() => setJoining("join")}>
             Připojit se do existující hry
           </button>
@@ -403,7 +404,7 @@ export default function App() {
 
         <div className="space-y-4 max-w-max mx-auto font-monopoly">
           <div className="flex items-center justify-center mb-6">
-            <img src="/monobank_logo.png" alt="Logo" className="w-20 h-20 mr-3" />
+            <img className="w-20 h-20 mr-3" src={monobank_logo_png} />
             <h2 className="font-bold text-lg">{joining === "join" ? "Připojit se do hry" : "Založit novou hru"}</h2>
           </div>
 
