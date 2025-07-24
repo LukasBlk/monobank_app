@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import './App.css'
 import { firebaseApp } from "./firebaseConfig";
 import { motion } from "framer-motion";
+import { useRef } from "react";
 
 // Import potřebných funkcí z Firestore a autentizace - přístup k datům a čtení dat
 import {
@@ -69,6 +70,17 @@ export default function App() {
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [transferAmount, setTransferAmount] = useState("");
+  const [modalContext, setModalContext] = useState("transfer");
+  const inputRef = useRef(null);
+
+  //autofokus inputu při otevření modalu
+  useEffect(() => {
+    if (showTransferModal && inputRef.current) {
+      setTimeout(() => {
+        inputRef.current.focus();
+      }, 150); // trochu delay kvůli renderu
+    }
+  }, [showTransferModal]);
 
   // Anonymní přihlášení hráče a uložení jeho ID do DB
   useEffect(() => {
@@ -360,7 +372,7 @@ export default function App() {
         <div className="space-y-4 max-w-md mx-auto text-center font-monopoly">
           <img src="/monobank_logo.png" alt="Logo" className="w-32 mx-auto mb-4" />
           <h1 className='text-5xl'>Vítej v Monobank</h1>
-          <h2 className='font-light text-xs text-right'>Zkušební provoz   v2.3</h2>
+          <h2 className='font-light text-xs text-right'>Zkušební provoz   v2.4</h2>
           <button className="text-white bg-[#0270bf] hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium text-sm w-full py-2.5 text-center me-2 mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800" onClick={() => setJoining("join")}>
             Připojit se do existující hry
           </button>
@@ -453,10 +465,10 @@ export default function App() {
     <div className="max-w-md mx-auto font-sans text-sm font-monopoly">
 
       <div className="flex items-center justify-center mb-6">
-            <img src="/monobank_logo.png" alt="Logo" className="w-20 h-20 mr-3" />
-            <h1 className="text-xl font-bold mb-4 text-center font-monopoly">Váš účet Monobank</h1>
-          </div>
-      
+        <img src="/monobank_logo.png" alt="Logo" className="w-20 h-20 mr-3" />
+        <h1 className="text-xl font-bold mb-4 text-center font-monopoly">Váš účet Monobank</h1>
+      </div>
+
 
       <div className="text-right mb-2">
         <button
@@ -467,17 +479,37 @@ export default function App() {
         </button>
       </div>
 
+      {isAdmin && (
+        <div className="text-sm mb-4 bg-[#d2e5d2] shadow-xl/10 p-4 rounded flex justify-between items-start flex-wrap gap-4">
+          <div>
+            <h3 className="text-red-600 font-bold mb-2">Admin panel</h3>
+            <button
+              onClick={resetGame}
+              className="bg-red-600 text-white text-xs px-3 py-1 rounded hover:bg-red-800"
+            >
+              Resetovat hru
+            </button>
+          </div>
+
+          <div className="text-right">
+            <p><strong>Game ID:</strong> {gameId}</p>
+            <p><strong>Heslo ke hře:</strong> {gameControl?.password || "žádné"}</p>
+          </div>
+        </div>
+      )}
+
 
       <h2 className="font-semibold">Hráči:</h2>
       <ul className="mb-4 space-y-2 text-xl font-semibold bg-[#d2e5d2] shadow-xl/20 rounded-b-2xl">
         {[...players, { id: "BANK", name: "🏛️ BANKA", balance: 0 }].map(p => (
           <li
             key={p.id}
-            className="flex justify-between items-center cursor-pointer hover:bg-gray-100 border p-2 rounded shadow"
+            className="flex border-2 justify-between items-center cursor-pointer hover:bg-gray-100 p-2 rounded shadow"
             onClick={() => {
               if (p.id !== userId) {
                 setSelectedPlayer(p);
                 setTransferAmount("");
+                setModalContext("transfer"); // ✅ klasický převod peněz
                 setShowTransferModal(true);
               }
             }}
@@ -485,16 +517,32 @@ export default function App() {
             <span className={p.id === userId ? "text-green-600 font-bold" : ""}>
               {p.name}{p.id !== "BANK" ? `: $${formatAmount(p.balance)}` : ""}
             </span>
+
             {isAdmin && p.id !== "BANK" && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  grantStartBonus(p.id);
-                }}
-                className="ml-2 text-xs bg-[#f59520] px-5 py-5 rounded hover:bg-yellow-300"
-              >
-                🔁
-              </button>
+              <div className="flex justify-end gap-2 mt-1">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    grantStartBonus(p.id);
+                  }}
+                  className="ml-2 text-2xl bg-[#f59520] px-3 py-3 rounded hover:bg-yellow-300"
+                >
+                  🔁
+                </button>
+
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedPlayer(p);
+                    setTransferAmount("");
+                    setShowTransferModal(true);
+                    setModalContext("admin-add");
+                  }}
+                  className="ml-2 text-2xl bg-green-500 px-3 py-3 rounded hover:bg-green-600"
+                >
+                  💸
+                </button>
+              </div>
             )}
           </li>
         ))}
@@ -503,9 +551,15 @@ export default function App() {
       {showTransferModal && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center z-50">
           <div className="bg-white p-6 rounded shadow max-w-sm w-full">
-            <h2 className="text-lg font-bold mb-4">Poslat peníze hráči {selectedPlayer?.name}</h2>
+            <h2 className="text-lg font-bold mb-4">
+              {modalContext === "admin-add"
+                ? `BANKA přidá peníze hráči ${selectedPlayer?.name}`
+                : `Poslat peníze hráči ${selectedPlayer?.name}`}
+            </h2>
             <input
-              type="text"
+              type="tel"
+              inputMode="numeric"
+              ref={inputRef}
               placeholder="Zadej částku"
               value={transferAmount !== '' ? Number(transferAmount).toLocaleString('cs-CZ') : ''}
               onChange={(e) => {
@@ -525,43 +579,67 @@ export default function App() {
 
               <button
                 className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded"
+
                 onClick={async () => {
                   const amountToSend = parseInt(transferAmount);
                   if (!amountToSend || amountToSend <= 0) return;
 
-                  const senderRef = doc(db, "games", gameId, "players", userId);
-                  const senderSnap = await getDoc(senderRef);
-                  const senderData = senderSnap.data();
+                  if (modalContext === "admin-add") {
+                    const toRef = doc(db, "games", gameId, "players", selectedPlayer.id);
+                    const toSnap = await getDoc(toRef);
+                    if (!toSnap.exists()) return;
 
-                  if (senderData.balance < amountToSend) {
-                    alert("Nedostatek prostředků.");
-                    return;
-                  }
-
-                  await updateDoc(senderRef, { balance: senderData.balance - amountToSend });
-
-                  if (selectedPlayer.id === "BANK") {
-                    await addDoc(collection(db, "games", gameId, "transactions"), {
-                      from: userId,
-                      to: null,
-                      amount: amountToSend,
-                      timestamp: Date.now(),
-                      type: "to-bank"
+                    await updateDoc(toRef, {
+                      balance: toSnap.data().balance + amountToSend
                     });
-                  } else {
-                    const recipientRef = doc(db, "games", gameId, "players", selectedPlayer.id);
-                    const recipientSnap = await getDoc(recipientRef);
-                    const recipientData = recipientSnap.data();
-
-                    await updateDoc(recipientRef, { balance: recipientData.balance + amountToSend });
 
                     await addDoc(collection(db, "games", gameId, "transactions"), {
-                      from: userId,
+                      from: null,
                       to: selectedPlayer.id,
                       amount: amountToSend,
                       timestamp: Date.now(),
-                      type: "transfer"
+                      type: "admin-add"
                     });
+
+                    alert(`Přidáno $${formatAmount(amountToSend)} hráči ${selectedPlayer.name}`);
+                  } else {
+                    // klasický převod (přesunuto sem z původního kódu)
+                    const senderRef = doc(db, "games", gameId, "players", userId);
+                    const senderSnap = await getDoc(senderRef);
+                    const senderData = senderSnap.data();
+
+                    if (senderData.balance < amountToSend) {
+                      alert("Nedostatek prostředků.");
+                      return;
+                    }
+
+                    await updateDoc(senderRef, { balance: senderData.balance - amountToSend });
+
+                    if (selectedPlayer.id === "BANK") {
+                      await addDoc(collection(db, "games", gameId, "transactions"), {
+                        from: userId,
+                        to: null,
+                        amount: amountToSend,
+                        timestamp: Date.now(),
+                        type: "to-bank"
+                      });
+                    } else {
+                      const recipientRef = doc(db, "games", gameId, "players", selectedPlayer.id);
+                      const recipientSnap = await getDoc(recipientRef);
+                      const recipientData = recipientSnap.data();
+
+                      await updateDoc(recipientRef, {
+                        balance: recipientData.balance + amountToSend
+                      });
+
+                      await addDoc(collection(db, "games", gameId, "transactions"), {
+                        from: userId,
+                        to: selectedPlayer.id,
+                        amount: amountToSend,
+                        timestamp: Date.now(),
+                        type: "transfer"
+                      });
+                    }
                   }
 
                   setShowTransferModal(false);
@@ -618,6 +696,8 @@ export default function App() {
       </div>
       */}
 
+      {/*
+      //Admin panel
       {isAdmin && (
         <div className="mt-6  pt-4 bg-[#ffefbb]">
           <h3 className="font-bold mb-2 text-red-600">Admin panel</h3>
@@ -678,8 +758,9 @@ export default function App() {
           </div>
         </div>
       )}
+      */}
 
-      <div className="mt-8  pt-4 bg-[#d2e5d2] shadow-xl/20 rounded-b-2xl">
+      <div className=" pl-2 pb-2 mt-8 pt-4 bg-[#d2e5d2] shadow-xl/20 rounded">
         <h3 className="font-bold mb-2">Historie transakcí</h3>
         <ul className="space-y-1">
           {transactions.map((t) => {
