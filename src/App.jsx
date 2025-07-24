@@ -369,10 +369,10 @@ export default function App() {
         transition={{ duration: 0.3 }}
         className=""
       >
-        <div className="space-y-4 max-w-md mx-auto text-center font-monopoly">
+        <div className="space-y-4 max-w-max mx-auto text-center font-monopoly">
           <img src="/monobank_logo.png" alt="Logo" className="w-32 mx-auto mb-4" />
           <h1 className='text-5xl'>Vítej v Monobank</h1>
-          <h2 className='font-light text-xs text-right'>Zkušební provoz   v2.4</h2>
+          <h2 className='font-light text-xs text-right'>Zkušební provoz   v2.5</h2>
           <button className="text-white bg-[#0270bf] hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium text-sm w-full py-2.5 text-center me-2 mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800" onClick={() => setJoining("join")}>
             Připojit se do existující hry
           </button>
@@ -401,7 +401,7 @@ export default function App() {
         className=""
       >
 
-        <div className="space-y-4 max-w-md mx-auto font-monopoly">
+        <div className="space-y-4 max-w-max mx-auto font-monopoly">
           <div className="flex items-center justify-center mb-6">
             <img src="/monobank_logo.png" alt="Logo" className="w-20 h-20 mr-3" />
             <h2 className="font-bold text-lg">{joining === "join" ? "Připojit se do hry" : "Založit novou hru"}</h2>
@@ -462,7 +462,7 @@ export default function App() {
   // *********************************
 
   return (
-    <div className="max-w-md mx-auto font-sans text-sm font-monopoly">
+    <div className="max-w-max mx-auto font-sans text-sm font-monopoly">
 
       <div className="flex items-center justify-center mb-6">
         <img src="/monobank_logo.png" alt="Logo" className="w-20 h-20 mr-3" />
@@ -525,7 +525,7 @@ export default function App() {
                     e.stopPropagation();
                     grantStartBonus(p.id);
                   }}
-                  className="ml-2 text-2xl bg-[#f59520] px-3 py-3 rounded hover:bg-yellow-300"
+                  className="ml-2 text-lg bg-[#f59520] px-2 py-2 rounded hover:bg-yellow-300"
                 >
                   🔁
                 </button>
@@ -538,7 +538,7 @@ export default function App() {
                     setShowTransferModal(true);
                     setModalContext("admin-add");
                   }}
-                  className="ml-2 text-2xl bg-green-500 px-3 py-3 rounded hover:bg-green-600"
+                  className="ml-2 text-lg bg-green-500 px-2 py-2 rounded hover:bg-green-600"
                 >
                   💸
                 </button>
